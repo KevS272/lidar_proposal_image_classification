@@ -27,7 +27,7 @@ void Engine::Init(const std::vector<char> &plan) {
     m_active = true;
 }
 
-void Engine::Infer(const std::vector<float> &input, std::vector<float> &output) {
+void Engine::Infer(const std::vector<float> &input, std::vector<float> &output, int img_size) {
     assert(m_active);
     UniquePtr<nvinfer1::IExecutionContext> context;
     context.reset(m_engine->createExecutionContext());
@@ -35,7 +35,7 @@ void Engine::Infer(const std::vector<float> &input, std::vector<float> &output) 
         Error("Error creating execution context");
     }
     CudaBuffer<float> inputBuffer;
-    inputBuffer.Init(3 * 224 * 224);
+    inputBuffer.Init(3 * img_size * img_size);
     assert(inputBuffer.Size() == input.size());
     inputBuffer.Put(input.data());
     CudaBuffer<float> outputBuffer;
@@ -77,7 +77,7 @@ void ReadClasses(const char *path, std::vector<std::string> &classes) {
     ifs.close();
 }
 
-void ReadPlan(const char *path, std::vector<char> &plan) {
+void Engine::ReadPlan(const char *path, std::vector<char> &plan) {
     std::ifstream ifs(path, std::ios::in | std::ios::binary);
     if (!ifs.is_open()) {
         Error("Cannot open %s", path);

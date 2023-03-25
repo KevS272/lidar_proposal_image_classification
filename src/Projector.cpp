@@ -8,10 +8,12 @@
 #include <sstream>
 #include <chrono>
 #include "ros/ros.h"
+#include "ros/package.h"
 #include <opencv2/opencv.hpp>
 #include <fs_msgs/Cone.h>
 #include <fs_msgs/Cones.h>
-#include<math.h>
+#include <math.h>
+#include <algorithm>
 
 
 Projector::Projector() : nh_("~"), n_(),
@@ -43,8 +45,35 @@ Projector::Projector() : nh_("~"), n_(),
             nh_.getParam("frame_id_lidar", frame_id_lidar_);
             nh_.getParam("frame_id_cam", frame_id_cam_);
             
-            // BB heuristic coefficient
-            nh_.getParam("bb_size_coef", bb_size_coef);
+            // Cone classifier parameters
+            nh_.getParam("bb_height_coef", bb_height_coef);
+            nh_.getParam("bb_width_factor", bb_width_factor);
+            nh_.getParam("classifier_img_size", classifier_img_size);
+            nh_.getParam("engine_path", engine_path);
+            XmlRpc::XmlRpcValue class_values;
+            nh_.getParam("classes", class_values);
+            XmlRpc::XmlRpcValue color_values;
+            nh_.getParam("colors", color_values);
+
+            // Color value parser
+            // colors.resize(color_values.size(), std::vector<int>(3));
+            colors.resize(color_values.size(), std::vector<int>(3, 0));
+            ROS_ASSERT(color_values.getType() == XmlRpc::XmlRpcValue::TypeArray);
+            for (int32_t i = 0; i < color_values.size(); ++i) {
+                ROS_ASSERT(color_values[i].getType() == XmlRpc::XmlRpcValue::TypeArray);
+                for (int32_t j = 0; j < color_values[i].size(); ++j) {
+                    ROS_ASSERT(color_values[i][j].getType() == XmlRpc::XmlRpcValue::TypeInt);
+                    colors.at(i).at(j) = static_cast<int>(color_values[i][j]);
+                }
+            }
+
+            // Class parser
+            classes.resize(class_values.size());
+            ROS_ASSERT(class_values.getType() == XmlRpc::XmlRpcValue::TypeArray);
+                for (int32_t i = 0; i < class_values.size(); ++i) {
+                    ROS_ASSERT(class_values[i].getType() == XmlRpc::XmlRpcValue::TypeString);
+                    classes.at(i) = static_cast<std::string>(class_values[i]);
+                }
 
             // Get Intrinsic matrix
             i_mat = cv::Mat(3, 3, cv::DataType<double>::type);
@@ -72,6 +101,19 @@ Projector::Projector() : nh_("~"), n_(),
 
             // Get Lidar->Camera transform
             t_vec = cv::Mat(3, 1, cv::DataType<double>::type);
+
+            // Set up the image classifier
+            std::string path = ros::package::getPath("lidar_proposal_image_classification") + engine_path;
+            const char *planPath = path.c_str();
+
+            ROS_INFO("[LiProIC] Loading engine from %s", planPath);
+
+            std::vector<char> plan;
+            
+            engine.ReadPlan(planPath, plan);
+
+            engine.Init(plan);
+            engine.DiagBindings();
 
             if(get_automatic_transform_){
                 ros::Rate rate(1.0);
@@ -125,6 +167,7 @@ Projector::Projector() : nh_("~"), n_(),
                 std::cout << std::endl;
             }
             ROS_INFO("[LiProIC] Set up extrinsic matrix.");
+
             ROS_INFO("[LiProIC] Setup finished successfully!");    
 
 }
@@ -166,10 +209,58 @@ void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_m
     end = std::chrono::steady_clock::now();
     std::cout << "[TIME] Projection = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;    
 
+
+    // Get cone proposal images for classification
+    begin = std::chrono::steady_clock::now();
+
+    std::vector<cv::Rect> bbs;
+
+    std::vector<cv::Mat> cone_imgs;
+
+    for (int i = 0; i < pts.size(); i++){
+        int cone_height = Projector::estimateConeHeight(pts[i], bb_height_coef, height_);
+        cv::Rect bb = Projector::defineBoundingBox(image_points[i], cone_height, bb_width_factor);
+        bbs.push_back(bb);
+        cv::Mat cropped_img;
+        cv::resize(cv_ptr->image(bb), cropped_img, cv::Size(classifier_img_size, classifier_img_size));
+        cone_imgs.push_back(cropped_img);
+    }
+
+    // Classify the cone proposal images
+    std::vector<int> class_preds;
+    std::vector<float> class_pred_confs;
+
+    std::vector<float> output;
+    for (int i = 0; i < cone_imgs.size(); i++){
+
+        cv::Mat image_float;
+        cone_imgs[i].convertTo(image_float, CV_32FC3);
+
+        std::vector<float> image_vec;  // create a new vector to store the image data
+        if (image_float.isContinuous()) {  // check if the image data is stored in a contiguous block
+            image_vec.assign((float*)image_float.datastart, (float*)image_float.dataend);  // copy the data directly
+        } else {
+            // if the data is not contiguous, use a loop to copy each row
+            for (int i = 0; i < image_float.rows; ++i) {
+                image_vec.insert(image_vec.end(), image_float.ptr<float>(i), image_float.ptr<float>(i)+image_float.cols*image_float.channels());
+            }
+        }
+
+        engine.Infer(image_vec, output, classifier_img_size);
+        Softmax(static_cast<int>(output.size()), output.data());
+        auto max_element_it = std::max_element(output.begin(), output.end());
+        float pred_conf = *max_element_it;
+        class_pred_confs.push_back(pred_conf);
+        int class_pred = std::distance(output.begin(), max_element_it);
+        class_preds.push_back(class_pred);
+    }
+    end = std::chrono::steady_clock::now();
+    std::cout << "[TIME] Cone classification = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;
+
     // Draw the points onto the image
     begin = std::chrono::steady_clock::now();
 
-    Projector::drawPtsOnImg(cv_ptr, pts, image_points, width_, height_);
+    Projector::drawBBsOnImg(cv_ptr, image_points, bbs, class_preds, class_pred_confs, width_, height_);
 
     end = std::chrono::steady_clock::now();
     std::cout << "[TIME] Draw on image = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;
@@ -198,34 +289,34 @@ std::vector<cv::Point3d> Projector::conesToCvVec (const fs_msgs::Cones::ConstPtr
 
 
 // Function that draws projected points onto the original image
-void Projector::drawPtsOnImg(cv_bridge::CvImagePtr& cv_ptr, const std::vector<cv::Point3d>& pts3d, const std::vector<cv::Point2d>& pts2d, int width, int height){
+void Projector::drawBBsOnImg(cv_bridge::CvImagePtr& cv_ptr, const std::vector<cv::Point2d>& pts2d, const std::vector<cv::Rect>& bbs, const std::vector<int>& class_preds, const std::vector<float>& class_pred_confs, int width, int height){
 
     for (int i = 0; i <= pts2d.size(); i++) {
         int x = static_cast<int>(pts2d[i].x);
         int y = static_cast<int>(pts2d[i].y);
 
-        if (!(x <= 0 || x >= width || y <= 0 || y >= height)) {
-
-            float dist = sqrt((pow(pts3d[i].x,2)) + (pow(pts3d[i].y,2)));
-            std::cout << "--- NEW CONE --- Distance to cone: " << dist << std::endl;  //DEBUG
-
-            float bb_height_relation_factor = 1/(1 + bb_size_coef * dist); // Coefficient from formula
-            float bb_height = height * bb_height_relation_factor;
-            float bb_width  = bb_height * 0.73;
-
-            std::cout << "bb rel factor, height, width: " << bb_height_relation_factor << ", " << bb_height << ", " << bb_width << std::endl;  //DEBUG
-
-            cv::Point rect_pt1(static_cast<int>(x - bb_width/2),
-                               static_cast<int>(y - bb_height/2));
-            cv::Point rect_pt2(static_cast<int>(x + bb_width/2),
-                               static_cast<int>(y + bb_height/2));
-
-            std::cout << "bb_rect pt1: " << rect_pt1.x << ", " << rect_pt1.y << std::endl;  //DEBUG                   
-            std::cout << "bb_rect pt2: " << rect_pt2.x << ", " << rect_pt2.y << std::endl;  //DEBUG                   
-
-            cv::circle(cv_ptr->image, cv::Point(x, y), 1, CV_RGB(255,0,0), -1, 0);
-            cv::rectangle(cv_ptr->image, rect_pt1, rect_pt2, CV_RGB(0,255,0), 1, cv::LINE_8);
-            std::cout << "[LiProIC] Draw cone 2D at x,y: " << x << "," << y << std::endl; //DEBUG
+         if (!(x <= 0 || x >= width || y <= 0 || y >= height)) {    
+            int cid = class_preds[i];
+            cv::circle(cv_ptr->image, cv::Point(x, y), 1, CV_RGB(0,255,0), -1, 0);
+            cv::rectangle(cv_ptr->image, bbs[i], CV_RGB(colors.at(cid).at(0),colors.at(cid).at(1),colors.at(cid).at(2)), 1, cv::LINE_8);
         }
     }
+}
+
+int Projector::estimateConeHeight(const cv::Point3d& pt3d, float coeff, int img_height){
+    float dist = sqrt((pow(pt3d.x,2)) + (pow(pt3d.y,2)));
+    float bb_height_relation_factor = 1/(1 + coeff * dist);
+    float bb_height = img_height * bb_height_relation_factor;
+    return static_cast<int>(bb_height);
+}
+
+cv::Rect Projector::defineBoundingBox(const cv::Point2d& pt2d, int cone_height, float width_factor){
+    int cone_width = static_cast<int>(cone_height * width_factor);
+    cv::Rect bb(
+        static_cast<int>(pt2d.x - cone_width/2),
+        static_cast<int>(pt2d.y - cone_height/2),
+        static_cast<int>(cone_width),
+        static_cast<int>(cone_height)
+    );
+    return bb;
 }
