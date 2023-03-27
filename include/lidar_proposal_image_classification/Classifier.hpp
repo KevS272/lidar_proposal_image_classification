@@ -17,7 +17,7 @@ public:
 public:
     void ReadPlan(const char *path, std::vector<char> &plan);
     void Init(const std::vector<char> &plan);
-    void Infer(const std::vector<float> &input, std::vector<float> &output, int img_size);
+    void Infer(const std::vector<float> &input, std::vector<float> &output, int img_size, int batch_size);
     void DiagBindings();
 private:
     bool m_active;

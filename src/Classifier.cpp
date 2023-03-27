@@ -27,19 +27,24 @@ void Engine::Init(const std::vector<char> &plan) {
     m_active = true;
 }
 
-void Engine::Infer(const std::vector<float> &input, std::vector<float> &output, int img_size) {
+void Engine::Infer(const std::vector<float> &input, std::vector<float> &output, int img_size, int batch_size) {
     assert(m_active);
     UniquePtr<nvinfer1::IExecutionContext> context;
     context.reset(m_engine->createExecutionContext());
     if (context == nullptr) {
         Error("Error creating execution context");
     }
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
+    // context->setOptimizationProfileAsync(0, stream);
+    context->setBindingDimensions(0, nvinfer1::Dims4(batch_size, 3, img_size, img_size));
     CudaBuffer<float> inputBuffer;
-    inputBuffer.Init(3 * img_size * img_size);
+    inputBuffer.Init(batch_size * 3 * img_size * img_size);
     assert(inputBuffer.Size() == input.size());
     inputBuffer.Put(input.data());
     CudaBuffer<float> outputBuffer;
-    outputBuffer.Init(1000);
+    outputBuffer.Init(5*batch_size); // TODO: make the size of output classes dynamic - currently hardcoded to 5
+    int outbuff = outputBuffer.Size();
     void *bindings[2];
     bindings[0] = inputBuffer.Data();
     bindings[1] = outputBuffer.Data();
@@ -47,6 +52,7 @@ void Engine::Infer(const std::vector<float> &input, std::vector<float> &output, 
     if (!ok) {
         Error("Error executing inference");
     }
+    int newoutbuff = outputBuffer.Size();
     output.resize(outputBuffer.Size());
     outputBuffer.Get(output.data());
 }

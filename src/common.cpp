@@ -4,6 +4,7 @@
 #include <cmath>
 #include <string>
 #include <chrono>
+#include <vector>
 
 #include <cuda_runtime.h>
 
@@ -85,6 +86,28 @@ void Softmax(int count, float *data) {
     for (int i = 0; i < count; i++) {
         data[i] = std::exp(data[i]) / sum;
     }
+}
+
+std::vector<float> new_softmax(const std::vector<float>& x) {
+    // Compute exponentials of input vector elements
+    std::vector<float> exp_x(x.size());
+    float max_x = x[0];
+    for (size_t i = 0; i < x.size(); ++i) {
+        if (x[i] > max_x) {
+            max_x = x[i];
+        }
+    }
+    float exp_sum = 0.0f;
+    for (size_t i = 0; i < x.size(); ++i) {
+        exp_x[i] = std::exp(x[i] - max_x);
+        exp_sum += exp_x[i];
+    }
+    // Compute softmax output vector
+    std::vector<float> y(x.size());
+    for (size_t i = 0; i < x.size(); ++i) {
+        y[i] = exp_x[i] / exp_sum;
+    }
+    return y;
 }
 
 void TopK(int count, const float *data, int k, int *pos, float *val) {

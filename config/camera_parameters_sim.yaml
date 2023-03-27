@@ -31,7 +31,7 @@ t_vec:
 bb_height_coef: 1.0                   # Coefficient bounding box height estimation (orig. value: 1.71740618)
 bb_width_factor: 0.8 #0.73                 # Percentage of bounding box hight that should be used as bb width
 classifier_img_size: 32               # Input image size that is used for the classifier
-engine_path: "/engines/model.engine"  # Bath of classifier engine file
+engine_path: "/engines/model_multibatch.engine"  # Bath of classifier engine file
 classes: ["no_cone", "yellow_cone", "blue_cone", "orange_cone", "large_orange_cone"]
 colors:
   - [128,   0, 128]                   # purple

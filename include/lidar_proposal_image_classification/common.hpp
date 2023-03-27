@@ -83,6 +83,7 @@ private:
 // general helpers
 
 void Softmax(int count, float *data);
+std::vector<float> new_softmax(const std::vector<float>& x);
 void TopK(int count, const float *data, int k, int *pos, float *val);
 
 // TensorRT helpers

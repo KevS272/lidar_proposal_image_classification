@@ -225,35 +225,45 @@ void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_m
         cv::resize(cv_ptr->image(bb), cropped_img, cv::Size(classifier_img_size, classifier_img_size));
         cone_imgs.push_back(cropped_img);
     }
+    end = std::chrono::steady_clock::now();
+    std::cout << "[TIME] Create cone images = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;
 
     // Classify the cone proposal images
+    begin = std::chrono::steady_clock::now();
     std::vector<int> class_preds;
     std::vector<float> class_pred_confs;
 
     std::vector<float> output;
-    for (int i = 0; i < cone_imgs.size(); i++){
+
+    int one_image_mem = cone_imgs[0].total()*3;
+    int curr_batch_size = cone_imgs.size();
+    std::vector<float> image_vec(one_image_mem*curr_batch_size);
+
+    int offset = 0;
+    for (int i = 0; i < curr_batch_size; i++){
 
         cv::Mat image_float;
         cone_imgs[i].convertTo(image_float, CV_32FC3);
 
-        std::vector<float> image_vec;  // create a new vector to store the image data
-        if (image_float.isContinuous()) {  // check if the image data is stored in a contiguous block
-            image_vec.assign((float*)image_float.datastart, (float*)image_float.dataend);  // copy the data directly
-        } else {
-            // if the data is not contiguous, use a loop to copy each row
-            for (int i = 0; i < image_float.rows; ++i) {
-                image_vec.insert(image_vec.end(), image_float.ptr<float>(i), image_float.ptr<float>(i)+image_float.cols*image_float.channels());
-            }
-        }
+        memcpy(&image_vec[offset], image_float.data, one_image_mem * sizeof(float)); // copy the data directly
+        offset += one_image_mem;
+    }
 
-        engine.Infer(image_vec, output, classifier_img_size);
-        Softmax(static_cast<int>(output.size()), output.data());
-        auto max_element_it = std::max_element(output.begin(), output.end());
+    engine.Infer(image_vec, output, classifier_img_size, curr_batch_size);
+    int outsize = output.size();
+
+    offset = classes.size();
+    for (int i = 0; i < curr_batch_size; i++){
+        std::vector<float> one_output(output.begin() + i*offset, output.begin() + (i+1)*offset);
+        // Softmax(static_cast<int>(one_output.size()), one_output.data());
+        one_output = new_softmax(one_output);
+        auto max_element_it = std::max_element(one_output.begin(), one_output.end());
         float pred_conf = *max_element_it;
         class_pred_confs.push_back(pred_conf);
-        int class_pred = std::distance(output.begin(), max_element_it);
+        int class_pred = std::distance(one_output.begin(), max_element_it);
         class_preds.push_back(class_pred);
     }
+    
     end = std::chrono::steady_clock::now();
     std::cout << "[TIME] Cone classification = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;
 
