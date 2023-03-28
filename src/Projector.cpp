@@ -109,7 +109,6 @@ Projector::Projector() : nh_("~"), n_(),
             ROS_INFO("[LiProIC] Loading engine from %s", planPath);
 
             std::vector<char> plan;
-            
             engine.ReadPlan(planPath, plan);
 
             engine.Init(plan);
@@ -209,6 +208,16 @@ void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_m
     end = std::chrono::steady_clock::now();
     std::cout << "[TIME] Projection = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;    
 
+    // Remove points that are outside of the image
+    int arr_size = image_points.size();
+    for (int i = 0; i < arr_size; i++){
+        if (image_points[i].x < 0 || image_points[i].x > width_ || image_points[i].y < 0 || image_points[i].y > height_){
+            image_points.erase(image_points.begin() + i);
+            pts.erase(pts.begin() + i);
+            i--;
+            arr_size--;
+        }
+    }
 
     // Get cone proposal images for classification
     begin = std::chrono::steady_clock::now();
@@ -241,9 +250,15 @@ void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_m
 
     int offset = 0;
     for (int i = 0; i < curr_batch_size; i++){
+        // // Convert the image from BGR to RGB color space
+        cv::cvtColor(cone_imgs[i], cone_imgs[i], cv::COLOR_BGR2RGB);
+        cv::Mat transposedImage;
+        cv::transpose(cone_imgs[i], transposedImage);
+        transposedImage = transposedImage.reshape(0, 1); // flatten the image into a row vector
 
         cv::Mat image_float;
-        cone_imgs[i].convertTo(image_float, CV_32FC3);
+        transposedImage.convertTo(image_float, CV_32FC3, 1.0 / 255);
+        // cone_imgs[i].convertTo(image_float, CV_32FC3, 1.0 / 255);
 
         memcpy(&image_vec[offset], image_float.data, one_image_mem * sizeof(float)); // copy the data directly
         offset += one_image_mem;
@@ -301,15 +316,13 @@ std::vector<cv::Point3d> Projector::conesToCvVec (const fs_msgs::Cones::ConstPtr
 // Function that draws projected points onto the original image
 void Projector::drawBBsOnImg(cv_bridge::CvImagePtr& cv_ptr, const std::vector<cv::Point2d>& pts2d, const std::vector<cv::Rect>& bbs, const std::vector<int>& class_preds, const std::vector<float>& class_pred_confs, int width, int height){
 
-    for (int i = 0; i <= pts2d.size(); i++) {
+    for (int i = 0; i < pts2d.size(); i++) {
         int x = static_cast<int>(pts2d[i].x);
         int y = static_cast<int>(pts2d[i].y);
-
-         if (!(x <= 0 || x >= width || y <= 0 || y >= height)) {    
-            int cid = class_preds[i];
-            cv::circle(cv_ptr->image, cv::Point(x, y), 1, CV_RGB(0,255,0), -1, 0);
-            cv::rectangle(cv_ptr->image, bbs[i], CV_RGB(colors.at(cid).at(0),colors.at(cid).at(1),colors.at(cid).at(2)), 1, cv::LINE_8);
-        }
+  
+        int cid = class_preds[i];
+        cv::circle(cv_ptr->image, cv::Point(x, y), 1, CV_RGB(0,255,0), -1, 0);
+        cv::rectangle(cv_ptr->image, bbs[i], CV_RGB(colors.at(cid).at(0),colors.at(cid).at(1),colors.at(cid).at(2)), 1, cv::LINE_8);
     }
 }
 
