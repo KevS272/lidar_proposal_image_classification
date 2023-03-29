@@ -6,10 +6,12 @@
 #include <tf2_ros/transform_listener.h>
 #include <string>
 #include <vector>
+#include <list>
 #include <geometry_msgs/TransformStamped.h>
 #include <fs_msgs/Cone.h>
 #include <fs_msgs/Cones.h>
 
+#include <lidar_proposal_image_classification/Classifier.hpp>
 
 class Projector{
 
@@ -53,9 +55,22 @@ class Projector{
         cv::Mat dist_coeffs; //camera distortion coefficients
         geometry_msgs::TransformStamped transformStamped;
         std::vector<cv::Point2d> img_points_;
+        Timer timer;
 
         // Bounding box size coefficient
-        float bb_size_coef;
+        float bb_height_coef;
+        float bb_width_factor;
+        int classifier_img_size;
+        std::string engine_path;
+
+        // Classifier
+        Engine engine;
+        std::vector<std::string> classes;
+        int num_classes;
+        std::vector<std::vector<int>> colors;
+        std::vector<int> class_preds;
+        std::vector<float> class_pred_confs;
+        std::vector<float> output;
 
     public:
 
@@ -69,6 +84,12 @@ class Projector{
         std::vector<cv::Point3d> conesToCvVec (const fs_msgs::Cones::ConstPtr& cones_msg);
 
         // Function that draws projected points onto the original image
-        void drawPtsOnImg(cv_bridge::CvImagePtr& cv_ptr, const std::vector<cv::Point3d>& pts3d, const std::vector<cv::Point2d>& pts2d, int width, int height);
+        void drawBBsOnImg(cv_bridge::CvImagePtr& cv_ptr, const std::vector<cv::Point2d>& pts2d, const std::vector<cv::Rect>& bbs, const std::vector<int>& class_preds, const std::vector<float>& class_pred_confs, int width, int height);
+        
+        // Function that stimates cone hight from 3D point
+        int estimateConeHeight(const cv::Point3d& pt3d, float coeff, int img_height);
+
+        // Function that defines the area to crop around the projected point
+        cv::Rect defineBoundingBox(const cv::Point2d& pt2d, int cone_height, float width_factor);
 
 };
