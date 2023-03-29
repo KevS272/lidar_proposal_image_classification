@@ -10,6 +10,7 @@
 #include <lidar_proposal_image_classification/common.hpp>
 #include <iostream>
 #include <iomanip>
+#include <iomanip>
 
 // error handling
 
@@ -40,13 +41,14 @@ void Timer::Stop(const std::string &message) {
     end = std::chrono::steady_clock::now();
     if(print_timer){
         std::cout << "[LiProIC][TIME] " << std::fixed << std::setprecision(3) << (std::chrono::duration<double, std::milli>(end - start)).count()  << "ms: "   << message <<std::endl;
+        std::cout << "[LiProIC][TIME] " << std::fixed << std::setprecision(3) << (std::chrono::duration<double, std::milli>(end - start)).count()  << "ms: "   << message <<std::endl;
     }
 }
 
 void Timer::StopTotal() {
     end_total = std::chrono::steady_clock::now();
     if(print_timer){
-        std::cout << "[LiProIC][TIME TOTAL] " << std::fixed << std::setprecision(3) << (std::chrono::duration<double, std::milli>(end_total - start_total)).count()  << "ms"  <<std::endl;
+        std::cout << "[LiProIC][TIME TOTAL] === " << std::fixed << std::setprecision(3) << (std::chrono::duration<double, std::milli>(end_total - start_total)).count()  << "ms ===" <<std::endl;
     }
 }
 

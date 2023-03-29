@@ -179,7 +179,7 @@ void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_m
     //------------------------------------------------------//
     
 
-    // --- Read point read cone data and convert it to cv vector
+    // --- Read lidar cone detection cone data and convert it to cv vector
     timer.Start();
 
     std::vector<cv::Point3d> pts = Projector::conesToCvVec(cones_msg);
@@ -215,8 +215,7 @@ void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_m
         int cone_height = Projector::estimateConeHeight(pts[i], bb_height_coef, height_);
         cv::Rect bb = Projector::defineBoundingBox(image_points[i], cone_height, bb_width_factor);
         bbs.push_back(bb);
-        cv::Mat cropped_img;
-        cv::resize(cv_ptr->image(bb), cropped_img, cv::Size(classifier_img_size, classifier_img_size));
+        cv::Mat cropped_img = cv_ptr->image(bb);
         cone_imgs.push_back(cropped_img);
     }
 
