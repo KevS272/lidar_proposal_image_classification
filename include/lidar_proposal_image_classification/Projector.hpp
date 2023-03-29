@@ -55,6 +55,7 @@ class Projector{
         cv::Mat dist_coeffs; //camera distortion coefficients
         geometry_msgs::TransformStamped transformStamped;
         std::vector<cv::Point2d> img_points_;
+        Timer timer;
 
         // Bounding box size coefficient
         float bb_height_coef;
@@ -65,7 +66,11 @@ class Projector{
         // Classifier
         Engine engine;
         std::vector<std::string> classes;
+        int num_classes;
         std::vector<std::vector<int>> colors;
+        std::vector<int> class_preds;
+        std::vector<float> class_pred_confs;
+        std::vector<float> output;
 
     public:
 

@@ -54,9 +54,9 @@ Projector::Projector() : nh_("~"), n_(),
             nh_.getParam("classes", class_values);
             XmlRpc::XmlRpcValue color_values;
             nh_.getParam("colors", color_values);
+            nh_.getParam("print_timer", timer.print_timer);
 
             // Color value parser
-            // colors.resize(color_values.size(), std::vector<int>(3));
             colors.resize(color_values.size(), std::vector<int>(3, 0));
             ROS_ASSERT(color_values.getType() == XmlRpc::XmlRpcValue::TypeArray);
             for (int32_t i = 0; i < color_values.size(); ++i) {
@@ -74,6 +74,7 @@ Projector::Projector() : nh_("~"), n_(),
                     ROS_ASSERT(class_values[i].getType() == XmlRpc::XmlRpcValue::TypeString);
                     classes.at(i) = static_cast<std::string>(class_values[i]);
                 }
+            num_classes = classes.size();
 
             // Get Intrinsic matrix
             i_mat = cv::Mat(3, 3, cv::DataType<double>::type);
@@ -174,9 +175,10 @@ Projector::Projector() : nh_("~"), n_(),
 
 // Main callback of the Projector
 void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_msgs::Cones::ConstPtr& cones_msg){
+    timer.StartTotal();
 
-    // Read image data and convert it to OpenCV format
-    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+    // --- Read image data and convert it to OpenCV format
+    timer.Start();
 
     cv_bridge::CvImagePtr cv_ptr;
     try{
@@ -187,28 +189,28 @@ void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_m
     return;
     }
 
-    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    std::cout << "[TIME] Read in image data = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;
+    timer.Stop("Read in image data");
+    //------------------------------------------------------//
+    
 
-    // Read point read cone data and convert it to cv vector
-    begin = std::chrono::steady_clock::now();
+    // --- Read point read cone data and convert it to cv vector
+    timer.Start();
 
     std::vector<cv::Point3d> pts = Projector::conesToCvVec(cones_msg);
 
-    end = std::chrono::steady_clock::now();
-    std::cout << "[TIME] Read & transform cone data = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s" <<std::endl;
-
+    timer.Stop("Read & transform cone data");
 
     // Do the projection
-    begin = std::chrono::steady_clock::now();
+    timer.Start();
     std::vector<cv::Point2d> image_points;
     cv::projectPoints(pts, r_mat, t_vec, i_mat,
                     dist_coeffs, image_points);
 
-    end = std::chrono::steady_clock::now();
-    std::cout << "[TIME] Projection = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;    
+    timer.Stop("Project points");
+    //------------------------------------------------------//
 
-    // Remove points that are outside of the image
+    // --- Remove points that are outside of the image
+    timer.Start();
     int arr_size = image_points.size();
     for (int i = 0; i < arr_size; i++){
         if (image_points[i].x < 0 || image_points[i].x > width_ || image_points[i].y < 0 || image_points[i].y > height_){
@@ -219,11 +221,8 @@ void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_m
         }
     }
 
-    // Get cone proposal images for classification
-    begin = std::chrono::steady_clock::now();
-
+    // Get cone proposal images for classification by estimating bounding boxes as a function of distance
     std::vector<cv::Rect> bbs;
-
     std::vector<cv::Mat> cone_imgs;
 
     for (int i = 0; i < pts.size(); i++){
@@ -234,43 +233,36 @@ void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_m
         cv::resize(cv_ptr->image(bb), cropped_img, cv::Size(classifier_img_size, classifier_img_size));
         cone_imgs.push_back(cropped_img);
     }
-    end = std::chrono::steady_clock::now();
-    std::cout << "[TIME] Create cone images = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;
 
-    // Classify the cone proposal images
-    begin = std::chrono::steady_clock::now();
-    std::vector<int> class_preds;
-    std::vector<float> class_pred_confs;
+    // preprocess the cut-out images and put them into a one-dimensional vector
+    cv::Mat blob;
+    cv::dnn::blobFromImages(cone_imgs, blob, 1.0/255.0, cv::Size(classifier_img_size, classifier_img_size), cv::Scalar(0, 0, 0), true, false);
 
-    std::vector<float> output;
-
-    int one_image_mem = cone_imgs[0].total()*3;
+    int one_image_mem = classifier_img_size * classifier_img_size * 3;
     int curr_batch_size = cone_imgs.size();
     std::vector<float> image_vec(one_image_mem*curr_batch_size);
-
+ 
     int offset = 0;
-    for (int i = 0; i < curr_batch_size; i++){
-        // // Convert the image from BGR to RGB color space
-        cv::cvtColor(cone_imgs[i], cone_imgs[i], cv::COLOR_BGR2RGB);
-        cv::Mat transposedImage;
-        cv::transpose(cone_imgs[i], transposedImage);
-        transposedImage = transposedImage.reshape(0, 1); // flatten the image into a row vector
-
-        cv::Mat image_float;
-        transposedImage.convertTo(image_float, CV_32FC3, 1.0 / 255);
-        // cone_imgs[i].convertTo(image_float, CV_32FC3, 1.0 / 255);
-
-        memcpy(&image_vec[offset], image_float.data, one_image_mem * sizeof(float)); // copy the data directly
+    for (int i = 0; i < curr_batch_size; ++i) {
+        cv::Mat flatBlob = blob.row(i).reshape(1, 1);
+        flatBlob.convertTo(flatBlob, CV_32F);
+        memcpy(&image_vec[offset], flatBlob.data, one_image_mem * sizeof(float));
         offset += one_image_mem;
     }
 
-    engine.Infer(image_vec, output, classifier_img_size, curr_batch_size);
-    int outsize = output.size();
+    timer.Stop("Create and preprocess cone images");
+    //------------------------------------------------------//
 
-    offset = classes.size();
+    // --- Classify the cone images
+    timer.Start();
+    engine.Infer(image_vec, output, classifier_img_size, curr_batch_size, num_classes);
+    timer.Stop("Do inference");
+    // ------------------------------------------------------//
+
+    // --- Postprocess the classification results, namely softmaxing the results
+    timer.Start();
     for (int i = 0; i < curr_batch_size; i++){
-        std::vector<float> one_output(output.begin() + i*offset, output.begin() + (i+1)*offset);
-        // Softmax(static_cast<int>(one_output.size()), one_output.data());
+        std::vector<float> one_output(output.begin() + i*num_classes, output.begin() + (i+1)*num_classes);
         one_output = new_softmax(one_output);
         auto max_element_it = std::max_element(one_output.begin(), one_output.end());
         float pred_conf = *max_element_it;
@@ -278,24 +270,22 @@ void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_m
         int class_pred = std::distance(one_output.begin(), max_element_it);
         class_preds.push_back(class_pred);
     }
-    
-    end = std::chrono::steady_clock::now();
-    std::cout << "[TIME] Cone classification = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;
+    timer.Stop("Postprocess classification results");
+    //------------------------------------------------------//
 
-    // Draw the points onto the image
-    begin = std::chrono::steady_clock::now();
-
+    // --- Draw the points onto the image
+    timer.Start();
     Projector::drawBBsOnImg(cv_ptr, image_points, bbs, class_preds, class_pred_confs, width_, height_);
+    timer.Stop("Draw on image");
+    //------------------------------------------------------//
 
-    end = std::chrono::steady_clock::now();
-    std::cout << "[TIME] Draw on image = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;
-
-
-    // Publish the new image
-    begin = std::chrono::steady_clock::now();
+    // --- Publish the new image
+    timer.Start();
     cones_pub_.publish(cv_ptr->toImageMsg());
-    end = std::chrono::steady_clock::now();
-    std::cout << "[TIME] Publish image = " <<  (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) /1000000.0  << "s"  <<std::endl;
+    timer.Stop("Publish image");
+    //------------------------------------------------------//
+    timer.StopTotal();
+    //======================================================//
 }
 
 
@@ -311,7 +301,6 @@ std::vector<cv::Point3d> Projector::conesToCvVec (const fs_msgs::Cones::ConstPtr
     }
     return pts;
 }
-
 
 // Function that draws projected points onto the original image
 void Projector::drawBBsOnImg(cv_bridge::CvImagePtr& cv_ptr, const std::vector<cv::Point2d>& pts2d, const std::vector<cv::Rect>& bbs, const std::vector<int>& class_preds, const std::vector<float>& class_pred_confs, int width, int height){

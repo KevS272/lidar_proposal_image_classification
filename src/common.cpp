@@ -5,12 +5,10 @@
 #include <string>
 #include <chrono>
 #include <vector>
-
 #include <cuda_runtime.h>
-
 #include <NvInfer.h>
-
 #include <lidar_proposal_image_classification/common.hpp>
+#include <iostream>
 
 // error handling
 
@@ -25,27 +23,30 @@ void Error(const char *fmt, ...) {
 
 // wall clock
 
-Timer::Timer(): elapsed(0.0f) { }
+Timer::Timer() { }
 
 Timer::~Timer() { }
-
-void Timer::Reset() {
-    elapsed = 0.0f;
-}
 
 void Timer::Start() {
     start = std::chrono::steady_clock::now();
 }
 
-void Timer::Stop() {
-    end = std::chrono::steady_clock::now();
-    elapsed +=
-        std::chrono::duration_cast<
-            std::chrono::duration<float, std::milli>>(end - start).count();
+void Timer::StartTotal() {
+    start_total = std::chrono::steady_clock::now();
 }
 
-float Timer::Elapsed() {
-    return elapsed;
+void Timer::Stop(const std::string &message) {
+    end = std::chrono::steady_clock::now();
+    if(print_timer){
+        std::cout << "[LiProIC][TIME] " << message << ": " <<  (std::chrono::duration<double, std::milli>(end - start)).count()  << "ms"  <<std::endl;
+    }
+}
+
+void Timer::StopTotal() {
+    end_total = std::chrono::steady_clock::now();
+    if(print_timer){
+        std::cout << "[LiProIC][TIME TOTAL] " << (std::chrono::duration<double, std::milli>(end_total - start_total)).count()  << "ms"  <<std::endl;
+    }
 }
 
 // CUDA helpers
@@ -78,16 +79,6 @@ void Memput(void *dst, const void *src, int size) {
 
 // general helpers
 
-void Softmax(int count, float *data) {
-    float sum = 0.0f;
-    for (int i = 0; i < count; i++) {
-        sum += std::exp(data[i]);
-    }
-    for (int i = 0; i < count; i++) {
-        data[i] = std::exp(data[i]) / sum;
-    }
-}
-
 std::vector<float> new_softmax(const std::vector<float>& x) {
     // Compute exponentials of input vector elements
     std::vector<float> exp_x(x.size());
@@ -108,31 +99,6 @@ std::vector<float> new_softmax(const std::vector<float>& x) {
         y[i] = exp_x[i] / exp_sum;
     }
     return y;
-}
-
-void TopK(int count, const float *data, int k, int *pos, float *val) {
-    for (int i = 0; i < k; i++) {
-        pos[i] = -1;
-        val[i] = 0.0f;
-    }
-    for (int p = 0; p < count; p++) {
-        float v = data[p];
-        int j = -1;
-        for (int i = 0; i < k; i++) {
-            if (pos[i] < 0 || val[i] < v) {
-                j = i;
-                break;
-            }
-        }
-        if (j >= 0) {
-            for (int i = k - 1; i > j; i--) {
-                pos[i] = pos[i-1];
-                val[i] = val[i-1];
-            }
-            pos[j] = p;
-            val[j] = v;
-        }
-    }
 }
 
 // TensorRT helpers

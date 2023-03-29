@@ -25,34 +25,26 @@ void Engine::Init(const std::vector<char> &plan) {
         Error("Error deserializing CUDA engine");
     }
     m_active = true;
-}
 
-void Engine::Infer(const std::vector<float> &input, std::vector<float> &output, int img_size, int batch_size) {
-    assert(m_active);
-    UniquePtr<nvinfer1::IExecutionContext> context;
     context.reset(m_engine->createExecutionContext());
     if (context == nullptr) {
         Error("Error creating execution context");
     }
-    cudaStream_t stream;
-    cudaStreamCreate(&stream);
-    // context->setOptimizationProfileAsync(0, stream);
+}
+
+void Engine::Infer(const std::vector<float> &input, std::vector<float> &output, int img_size, int batch_size, int num_classes) {
+    assert(m_active);
     context->setBindingDimensions(0, nvinfer1::Dims4(batch_size, 3, img_size, img_size));
     CudaBuffer<float> inputBuffer;
     inputBuffer.Init(batch_size * 3 * img_size * img_size);
     assert(inputBuffer.Size() == input.size());
     inputBuffer.Put(input.data());
     CudaBuffer<float> outputBuffer;
-    outputBuffer.Init(5*batch_size); // TODO: make the size of output classes dynamic - currently hardcoded to 5
-    int outbuff = outputBuffer.Size();
+    outputBuffer.Init(num_classes*batch_size);
     void *bindings[2];
     bindings[0] = inputBuffer.Data();
     bindings[1] = outputBuffer.Data();
     bool ok = context->executeV2(bindings);
-    if (!ok) {
-        Error("Error executing inference");
-    }
-    int newoutbuff = outputBuffer.Size();
     output.resize(outputBuffer.Size());
     outputBuffer.Get(output.data());
 }
@@ -105,18 +97,6 @@ void ReadInput(const char *path, std::vector<float> &input) {
     input.resize(size);
     ifs.read(reinterpret_cast<char *>(input.data()), size * sizeof(float));
     ifs.close();
-}
-
-void PrintOutput(const std::vector<float> &output, const std::vector<std::string> &classes) {
-    int top5p[5];
-    float top5v[5];
-    TopK(static_cast<int>(output.size()), output.data(), 5, top5p, top5v);
-    printf("Top-5 results\n");
-    for (int i = 0; i < 5; i++) {
-        std::string label = classes[top5p[i]];
-        float prob = 100.0f * top5v[i];
-        printf("  [%d] %s %.2f%%\n", i, label.c_str(), prob);
-    }
 }
 
 // main program

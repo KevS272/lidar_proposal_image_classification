@@ -21,14 +21,16 @@ public:
     Timer();
     ~Timer();
 public:
-    void Reset();
     void Start();
-    void Stop();
-    float Elapsed();
+    void StartTotal();
+    void Stop(const std::string &message);
+    void StopTotal();
+    bool print_timer;
 private:
     std::chrono::time_point<std::chrono::steady_clock> start;
     std::chrono::time_point<std::chrono::steady_clock> end;
-    float elapsed;
+    std::chrono::time_point<std::chrono::steady_clock> start_total;
+    std::chrono::time_point<std::chrono::steady_clock> end_total;
 };
 
 // CUDA helpers
@@ -82,9 +84,7 @@ private:
 
 // general helpers
 
-void Softmax(int count, float *data);
 std::vector<float> new_softmax(const std::vector<float>& x);
-void TopK(int count, const float *data, int k, int *pos, float *val);
 
 // TensorRT helpers
 
