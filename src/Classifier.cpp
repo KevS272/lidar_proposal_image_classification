@@ -6,7 +6,6 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
-
 #include <NvInfer.h>
 
 // wrapper class for inference engine
@@ -51,7 +50,7 @@ void Engine::Infer(const std::vector<float> &input, std::vector<float> &output, 
 
 void Engine::DiagBindings() {
     int nbBindings = static_cast<int>(m_engine->getNbBindings());
-    printf("Bindings: %d\n", nbBindings);
+    printf("TensorRT Classifier Engine Bindings: %d\n", nbBindings);
     for (int i = 0; i < nbBindings; i++) {
         const char *name = m_engine->getBindingName(i);
         bool isInput = m_engine->bindingIsInput(i);
@@ -59,20 +58,6 @@ void Engine::DiagBindings() {
         std::string fmtDims = FormatDims(dims);
         printf("  [%d] \"%s\" %s [%s]\n", i, name, isInput ? "input" : "output", fmtDims.c_str());
     }
-}
-
-// I/O utilities
-
-void ReadClasses(const char *path, std::vector<std::string> &classes) {
-    std::string line;
-    std::ifstream ifs(path, std::ios::in);
-    if (!ifs.is_open()) {
-        Error("Cannot open %s", path);
-    }
-    while (std::getline(ifs, line)) {
-        classes.push_back(line);
-    }
-    ifs.close();
 }
 
 void Engine::ReadPlan(const char *path, std::vector<char> &plan) {
@@ -87,48 +72,3 @@ void Engine::ReadPlan(const char *path, std::vector<char> &plan) {
     ifs.read(plan.data(), size);
     ifs.close();
 }
-
-void ReadInput(const char *path, std::vector<float> &input) {
-    std::ifstream ifs(path, std::ios::in | std::ios::binary);
-    if (!ifs.is_open()) {
-        Error("Cannot open %s", path);
-    }
-    size_t size = 3 * 224 * 224;
-    input.resize(size);
-    ifs.read(reinterpret_cast<char *>(input.data()), size * sizeof(float));
-    ifs.close();
-}
-
-// main program
-
-// int main(int argc, char *argv[]) {
-//     if (argc != 3) {
-//         fprintf(stderr, "Usage: trt_infer_plan <plan_path> <input_path>\n");
-//         return 1;
-//     }
-//     const char *planPath = argv[1];
-//     const char *inputPath = argv[2];
-
-//     printf("Start %s\n", planPath);
-
-//     std::vector<std::string> classes;
-//     ReadClasses("imagenet_classes.txt", classes);
-
-//     std::vector<char> plan;
-//     ReadPlan(planPath, plan);
-
-//     std::vector<float> input;
-//     ReadInput(inputPath, input);
-
-//     std::vector<float> output;
-
-//     Engine engine;
-//     engine.Init(plan);
-//     engine.DiagBindings();
-//     engine.Infer(input, output);
-
-//     Softmax(static_cast<int>(output.size()), output.data());
-//     PrintOutput(output, classes);
-
-//     return 0;
-// }

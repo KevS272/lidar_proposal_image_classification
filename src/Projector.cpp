@@ -23,7 +23,7 @@ Projector::Projector() : nh_("~"), n_(),
         img_sync(MySyncPolicy(200), img_sub_, cones_sub_){
 
             // Define Publisher
-            cones_pub_ = nh_.advertise<sensor_msgs::Image>("image", 1000);
+            cones_pub_ = nh_.advertise<sensor_msgs::Image>("image", 100);
 
             // Register message filter callback
             img_sync.registerCallback(boost::bind(&Projector::callback, this, _1, _2 ));
@@ -89,7 +89,6 @@ Projector::Projector() : nh_("~"), n_(),
             i_mat.at<double>(0, 2) = cx_;
             i_mat.at<double>(1, 2) = cy_;
             i_mat.at<double>(2, 2) = 1;
-     
             ROS_INFO("[LiProIC] Got intrinsic matrix.");
 
             // Distortion coefficients
@@ -100,21 +99,17 @@ Projector::Projector() : nh_("~"), n_(),
             dist_coeffs.at<double>(3) = p2_;
             dist_coeffs.at<double>(4) = k3_;
 
-            // Get Lidar->Camera transform
-            t_vec = cv::Mat(3, 1, cv::DataType<double>::type);
-
             // Set up the image classifier
             std::string path = ros::package::getPath("lidar_proposal_image_classification") + engine_path;
             const char *planPath = path.c_str();
-
             ROS_INFO("[LiProIC] Loading engine from %s", planPath);
-
             std::vector<char> plan;
             engine.ReadPlan(planPath, plan);
-
             engine.Init(plan);
             engine.DiagBindings();
 
+            // Get Lidar->Camera transform
+            t_vec = cv::Mat(3, 1, cv::DataType<double>::type);
             if(get_automatic_transform_){
                 ros::Rate rate(1.0);
                 bool _got_tf = false;
@@ -142,8 +137,6 @@ Projector::Projector() : nh_("~"), n_(),
                     t_vec.at<double>(i) = static_cast<double>(t_values[i]);
                 }
             }
-
-            std::cout << "Translation vector: " << t_vec.at<double>(0) << " " << t_vec.at<double>(1) << " "<< t_vec.at<double>(2) << std::endl;
             ROS_INFO("[LiProIC] Got lidar->camera transform.");            
 
             // Transform quaternions and set rotation matrix
@@ -153,23 +146,16 @@ Projector::Projector() : nh_("~"), n_(),
             q.setX(0.5); //(transformStamped.transform.rotation.x);
             q.setY(-0.5); //(transformStamped.transform.rotation.y);
             q.setZ(0.5); //(transformStamped.transform.rotation.z);
-            std::cout << "Qaternion X,Y,Z,W: " << q.x() << " " << q.y() << " " << q.z() << " " << q.w() << std::endl;
-
             tf2::Matrix3x3 m;
             m.setRotation(q);
-
             r_mat = cv::Mat(3, 3, cv::DataType<double>::type);
             for(int i = 0; i <= 2; i++){
                 for(int j = 0; j <= 2; j++){
                     r_mat.at<double>(i, j) = m[i][j];
-                    std::cout << r_mat.at<double>(i, j) << " ";
                 }
-                std::cout << std::endl;
             }
             ROS_INFO("[LiProIC] Set up extrinsic matrix.");
-
             ROS_INFO("[LiProIC] Setup finished successfully!");    
-
 }
 
 

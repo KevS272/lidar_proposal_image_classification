@@ -5,9 +5,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
-
 #include <NvInfer.h>
-
 #include <lidar_proposal_image_classification/common.hpp>
 
 class Engine {
