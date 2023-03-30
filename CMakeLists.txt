@@ -5,8 +5,6 @@ project(lidar_proposal_image_classification)
 # add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   fs_msgs
@@ -18,26 +16,36 @@ find_package(catkin REQUIRED COMPONENTS
   tf2
 )
 
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+# CUDA configuration
+find_package(CUDA REQUIRED)
+message("-- CUDA version: ${CUDA_VERSION}")
+set(CUDA_VERBOSE_BUILD ON)
+set(CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
 
+# TensorRT
+find_path(TENSORRT_INCLUDE_DIR NvInfer.h
+  HINTS ${TENSORRT_ROOT} ${CUDA_TOOLKIT_ROOT_DIR}
+  PATH_SUFFIXES include)
+MESSAGE(STATUS "Found TensorRT headers at ${TENSORRT_INCLUDE_DIR}")
+find_library(TENSORRT_LIBRARY_INFER nvinfer
+  HINTS ${TENSORRT_ROOT} ${TENSORRT_BUILD} ${CUDA_TOOLKIT_ROOT_DIR}
+  PATH_SUFFIXES lib lib64 lib/x64)
+find_library(TENSORRT_LIBRARY_INFER_PLUGIN nvinfer_plugin
+  HINTS  ${TENSORRT_ROOT} ${TENSORRT_BUILD} ${CUDA_TOOLKIT_ROOT_DIR}
+  PATH_SUFFIXES lib lib64 lib/x64)
+  find_library(TENSORRT_LIBRARY_PARSER nvparsers
+  HINTS  ${TENSORRT_ROOT} ${TENSORRT_BUILD} ${CUDA_TOOLKIT_ROOT_DIR}
+  PATH_SUFFIXES lib lib64 lib/x64)
+set(TENSORRT_LIBRARY ${TENSORRT_LIBRARY_INFER} ${TENSORRT_LIBRARY_INFER_PLUGIN} ${TENSORRT_LIBRARY_PARSER})
+MESSAGE(STATUS "Find TensorRT libs at ${TENSORRT_LIBRARY}")
+find_package_handle_standard_args(
+  TENSORRT DEFAULT_MSG TENSORRT_INCLUDE_DIR TENSORRT_LIBRARY)
+if(NOT TENSORRT_FOUND)
+  message(ERROR
+    "Cannot find TensorRT library.")
+endif()
 
-## Uncomment this if the package has a setup.py. This macro ensures
-## modules and global scripts declared therein get installed
-## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
-# catkin_python_setup()
-
-################################################
-## Declare ROS messages, services and actions ##
-################################################
-
-################################################
-## Declare ROS dynamic reconfigure parameters ##
-################################################
-
-###################################
-## catkin specific configuration ##
-###################################
+# catkin specific configuration
 catkin_package(
   INCLUDE_DIRS
     include
@@ -53,34 +61,28 @@ catkin_package(
     fs_msgs
 )
 
-###########
-## Build ##
-###########
-
-## Specify additional locations of header files
-## Your package locations should be listed before other locations
+# Build
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(lidar_proposal_image_classification
-  src/Projector.cpp
-  src/pcl_projection_node.cpp
+set(BUILD_DEPS "YES" CACHE BOOL "If YES, will install dependencies into sandbox.  Automatically reset to NO after dependencies are installed.")
 
-)
+list(APPEND CUDA_NVCC_FLAGS "-D_FORCE_INLINES -Xcompiler -fPIC")
+CUDA_INCLUDE_DIRECTORIES(
+  ${CUDNN_INCLUDE_DIR} 
+  ${TENSORRT_INCLUDE_DIR}
+  )
 
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+CUDA_ADD_EXECUTABLE(${PROJECT_NAME} 
+  src/common.cpp
+  src/Projector.cpp 
+  src/Classifier.cpp 
+  src/liproic_node.cpp 
+  )
 
+target_include_directories(${PROJECT_NAME} PUBLIC ${CUDA_INCLUDE_DIRS} ${TENSORRT_INCLUDE_DIR} ${CUDNN_INCLUDE_DIR})
 
-#############
-## Install ##
-#############
-
-
-
-#############
-## Testing ##
-#############
-
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${TENSORRT_LIBRARY} )
 
