@@ -5,8 +5,6 @@ project(lidar_proposal_image_classification)
 # add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   fs_msgs
@@ -47,26 +45,7 @@ if(NOT TENSORRT_FOUND)
     "Cannot find TensorRT library.")
 endif()
 
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
-
-
-## Uncomment this if the package has a setup.py. This macro ensures
-## modules and global scripts declared therein get installed
-## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
-# catkin_python_setup()
-
-################################################
-## Declare ROS messages, services and actions ##
-################################################
-
-################################################
-## Declare ROS dynamic reconfigure parameters ##
-################################################
-
-###################################
-## catkin specific configuration ##
-###################################
+# catkin specific configuration
 catkin_package(
   INCLUDE_DIRS
     include
@@ -82,22 +61,11 @@ catkin_package(
     fs_msgs
 )
 
-###########
-## Build ##
-###########
-
-## Specify additional locations of header files
-## Your package locations should be listed before other locations
+# Build
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
 )
-
-# add_executable(lidar_proposal_image_classification
-#   src/Projector.cpp
-#   src/Classifier.cpp
-#   src/pcl_projection_node.cpp
-# )
 
 set(BUILD_DEPS "YES" CACHE BOOL "If YES, will install dependencies into sandbox.  Automatically reset to NO after dependencies are installed.")
 
@@ -111,22 +79,10 @@ CUDA_ADD_EXECUTABLE(${PROJECT_NAME}
   src/common.cpp
   src/Projector.cpp 
   src/Classifier.cpp 
-  src/pcl_projection_node.cpp 
+  src/liproic_node.cpp 
   )
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CUDA_INCLUDE_DIRS} ${TENSORRT_INCLUDE_DIR} ${CUDNN_INCLUDE_DIR})
 
 target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${TENSORRT_LIBRARY} )
-
-
-#############
-## Install ##
-#############
-
-
-
-#############
-## Testing ##
-#############
-
 

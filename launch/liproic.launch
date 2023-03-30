@@ -13,8 +13,8 @@
 
     <arg name="get_auto_tf" default="false"/>
 
-    <node pkg="lidar_proposal_image_classification" type="lidar_proposal_image_classification" name="projection_node" output="screen">
-        <rosparam command="load" file="$(find lidar_proposal_image_classification)/config/camera_parameters_real.yaml"/>
+    <node pkg="lidar_proposal_image_classification" type="lidar_proposal_image_classification" name="LiProIC_node" output="screen">
+        <rosparam command="load" file="$(find lidar_proposal_image_classification)/config/real.yaml"/>
 
         <remap from="~sub_topic_img" to="$(arg sub_topic_img)" />
         <remap from="~sub_topic_cones" to="$(arg sub_topic_cones)" />

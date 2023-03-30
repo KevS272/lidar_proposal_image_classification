@@ -27,7 +27,7 @@ Projector::Projector() : nh_("~"), n_(),
                 bb_img_pub_ = nh_.advertise<sensor_msgs::Image>("bb_image", 100);
             }
             if(pub_viz_markers){
-                marker_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("cone_markers", 100);
+                marker_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("cone_marker_array", 100);
             }
             cones_pub_ = nh_.advertise<fs_msgs::Cones>("cones", 100);
 
