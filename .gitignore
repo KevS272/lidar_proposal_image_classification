@@ -52,3 +52,5 @@ CATKIN_IGNORE
 
 # TensorRT engines
 *.engine
+
+.vscode/*
