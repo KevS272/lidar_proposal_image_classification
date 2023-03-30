@@ -10,7 +10,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <fs_msgs/Cone.h>
 #include <fs_msgs/Cones.h>
-
+#include <visualization_msgs/MarkerArray.h>
 #include <lidar_proposal_image_classification/Classifier.hpp>
 
 class Projector{
@@ -22,6 +22,8 @@ class Projector{
         ros::NodeHandle n_;
         tf2_ros::Buffer tfBuffer;
         tf2_ros::TransformListener tfListener;
+        ros::Publisher bb_img_pub_;
+        ros::Publisher marker_pub_;
         ros::Publisher cones_pub_;
         typedef message_filters::Subscriber<sensor_msgs::Image> ImageSubscriber;
         typedef message_filters::Subscriber<fs_msgs::Cones> ConeSubscriber;
@@ -45,6 +47,8 @@ class Projector{
         int width_;
         // Other parameters
         bool get_automatic_transform_;
+        bool pub_bb_img;
+        bool pub_viz_markers;
         std::string frame_id_lidar_; 
         std::string frame_id_cam_; 
 
@@ -84,7 +88,7 @@ class Projector{
         std::vector<cv::Point3d> conesToCvVec (const fs_msgs::Cones::ConstPtr& cones_msg);
 
         // Function that draws projected points onto the original image
-        void drawBBsOnImg(cv_bridge::CvImagePtr& cv_ptr, const std::vector<cv::Point2d>& pts2d, const std::vector<cv::Rect>& bbs, const std::vector<int>& class_preds, const std::vector<float>& class_pred_confs, int width, int height);
+        void drawBBsOnImg(cv_bridge::CvImagePtr& cv_ptr, const std::vector<cv::Point2d>& pts2d, const std::vector<cv::Rect>& bbs, const std::vector<int>& class_preds, const std::vector<float>& class_pred_confs);
         
         // Function that stimates cone hight from 3D point
         int estimateConeHeight(const cv::Point3d& pt3d, float coeff, int img_height);
@@ -92,4 +96,9 @@ class Projector{
         // Function that defines the area to crop around the projected point
         cv::Rect defineBoundingBox(const cv::Point2d& pt2d, int cone_height, float width_factor);
 
+        // Function that fills a Cones message with data
+        void createConesMsg(fs_msgs::Cones & cones_msg, const std::string & frame_id, const ros::Time time, const std::vector<cv::Point3d>& pt3d, const std::vector<int>& class_preds, const std::vector<float>& class_pred_confs);
+
+        // Function that fills a MarkerArray message with data
+        void createMarkerMsg(visualization_msgs::MarkerArray& marker_array, const std::string& frame_id, const ros::Time time, const std::vector<cv::Point3d>& pt3d, const std::vector<int>& class_preds);
 };

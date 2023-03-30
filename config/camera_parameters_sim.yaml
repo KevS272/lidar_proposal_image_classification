@@ -1,10 +1,8 @@
-# == Camera Parameters == #
-
 # Image dimensions
 width: 640
 height: 320
 
-# Intrinsic
+# Intrinsic camera parameters
 focal_x: 701.369863014
 focal_y: 701.369863014
 skew: 0.0 #-0.555483153496783
@@ -16,7 +14,7 @@ k3: 0
 p1: 0
 p2: 0
 
-# Extrinsic
+# Lidar->camera transformation
 r_vec:
   - [0, -1,  0]
   - [0,  0, -1]
@@ -31,12 +29,16 @@ t_vec:
 bb_height_coef: 1.0                   # Coefficient bounding box height estimation (orig. value: 1.71740618)
 bb_width_factor: 0.8 #0.73            # Percentage of bounding box hight that should be used as bb width
 classifier_img_size: 32               # Input image size that is used for the classifier
-engine_path: "/engines/model_multibatch.engine"  # Path of classifier engine file
-classes: ["no_cone", "yellow_cone", "blue_cone", "orange_cone", "large_orange_cone"]
+engine_path: "/engines/model_multibatch.engine"                                       # Path of classifier engine file (relative to package)
+classes: ["no_cone", "yellow_cone", "blue_cone", "orange_cone", "large_orange_cone"]  # Names and order of classes
 colors:
   - [128,   0, 128]                   # purple
   - [255, 255,   0]                   # yellow
   - [  0,   0, 255]                   # blue
   - [255, 165,   0]                   # orange
   - [255,   0,   0]                   # red
-print_timer: true                     # Print time for each step
+
+# Monitoring / Visualization parameters
+print_timer: true                    # Print time for each step
+pub_bb_img: true                     # Publish image with bounding boxes drawn onto it
+pub_viz_markers: true                # Publish cone markers for visualization

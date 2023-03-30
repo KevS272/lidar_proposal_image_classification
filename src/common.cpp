@@ -41,7 +41,6 @@ void Timer::Stop(const std::string &message) {
     end = std::chrono::steady_clock::now();
     if(print_timer){
         std::cout << "[LiProIC][TIME] " << std::fixed << std::setprecision(3) << (std::chrono::duration<double, std::milli>(end - start)).count()  << "ms: "   << message <<std::endl;
-        std::cout << "[LiProIC][TIME] " << std::fixed << std::setprecision(3) << (std::chrono::duration<double, std::milli>(end - start)).count()  << "ms: "   << message <<std::endl;
     }
 }
 

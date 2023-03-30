@@ -14,7 +14,7 @@
 #include <fs_msgs/Cones.h>
 #include <math.h>
 #include <algorithm>
-
+#include <visualization_msgs/MarkerArray.h>
 
 Projector::Projector() : nh_("~"), n_(),
         img_sub_(nh_, "sub_topic_img", 10),
@@ -23,7 +23,13 @@ Projector::Projector() : nh_("~"), n_(),
         img_sync(MySyncPolicy(200), img_sub_, cones_sub_){
 
             // Define Publisher
-            cones_pub_ = nh_.advertise<sensor_msgs::Image>("image", 100);
+            if(pub_bb_img){
+                bb_img_pub_ = nh_.advertise<sensor_msgs::Image>("bb_image", 100);
+            }
+            if(pub_viz_markers){
+                marker_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("cone_markers", 100);
+            }
+            cones_pub_ = nh_.advertise<fs_msgs::Cones>("cones", 100);
 
             // Register message filter callback
             img_sync.registerCallback(boost::bind(&Projector::callback, this, _1, _2 ));
@@ -50,29 +56,31 @@ Projector::Projector() : nh_("~"), n_(),
             nh_.getParam("bb_width_factor", bb_width_factor);
             nh_.getParam("classifier_img_size", classifier_img_size);
             nh_.getParam("engine_path", engine_path);
-            XmlRpc::XmlRpcValue class_values;
-            nh_.getParam("classes", class_values);
-            XmlRpc::XmlRpcValue color_values;
-            nh_.getParam("colors", color_values);
+            XmlRpc::XmlRpcValue class_values_;
+            nh_.getParam("classes", class_values_);
+            XmlRpc::XmlRpcValue color_values_;
+            nh_.getParam("colors", color_values_);
             nh_.getParam("print_timer", timer.print_timer);
+            nh_.getParam("pub_bb_img", pub_bb_img);
+            nh_.getParam("pub_viz_markers", pub_viz_markers);
 
             // Color value parser
-            colors.resize(color_values.size(), std::vector<int>(3, 0));
-            ROS_ASSERT(color_values.getType() == XmlRpc::XmlRpcValue::TypeArray);
-            for (int32_t i = 0; i < color_values.size(); ++i) {
-                ROS_ASSERT(color_values[i].getType() == XmlRpc::XmlRpcValue::TypeArray);
-                for (int32_t j = 0; j < color_values[i].size(); ++j) {
-                    ROS_ASSERT(color_values[i][j].getType() == XmlRpc::XmlRpcValue::TypeInt);
-                    colors.at(i).at(j) = static_cast<int>(color_values[i][j]);
+            colors.resize(color_values_.size(), std::vector<int>(3, 0));
+            ROS_ASSERT(color_values_.getType() == XmlRpc::XmlRpcValue::TypeArray);
+            for (int32_t i = 0; i < color_values_.size(); ++i) {
+                ROS_ASSERT(color_values_[i].getType() == XmlRpc::XmlRpcValue::TypeArray);
+                for (int32_t j = 0; j < color_values_[i].size(); ++j) {
+                    ROS_ASSERT(color_values_[i][j].getType() == XmlRpc::XmlRpcValue::TypeInt);
+                    colors.at(i).at(j) = static_cast<int>(color_values_[i][j]);
                 }
             }
 
             // Class parser
-            classes.resize(class_values.size());
-            ROS_ASSERT(class_values.getType() == XmlRpc::XmlRpcValue::TypeArray);
-                for (int32_t i = 0; i < class_values.size(); ++i) {
-                    ROS_ASSERT(class_values[i].getType() == XmlRpc::XmlRpcValue::TypeString);
-                    classes.at(i) = static_cast<std::string>(class_values[i]);
+            classes.resize(class_values_.size());
+            ROS_ASSERT(class_values_.getType() == XmlRpc::XmlRpcValue::TypeArray);
+                for (int32_t i = 0; i < class_values_.size(); ++i) {
+                    ROS_ASSERT(class_values_[i].getType() == XmlRpc::XmlRpcValue::TypeString);
+                    classes.at(i) = static_cast<std::string>(class_values_[i]);
                 }
             num_classes = classes.size();
 
@@ -260,14 +268,29 @@ void Projector::callback(const sensor_msgs::Image::ConstPtr& img_msg, const fs_m
 
     // --- Draw the points onto the image
     timer.Start();
-    Projector::drawBBsOnImg(cv_ptr, image_points, bbs, class_preds, class_pred_confs, width_, height_);
+    
     timer.Stop("Draw on image");
     //------------------------------------------------------//
 
-    // --- Publish the new image
+    // --- Publish the messages
     timer.Start();
-    cones_pub_.publish(cv_ptr->toImageMsg());
-    timer.Stop("Publish image");
+    // Publish the cone messages
+    fs_msgs::Cones new_cones_msg;
+    Projector::createConesMsg(new_cones_msg, cones_msg->header.frame_id, cones_msg->header.stamp, pts, class_preds, class_pred_confs);
+    cones_pub_.publish(new_cones_msg);
+
+    // Publish the image with the bounding boxes
+    if(pub_bb_img){
+        Projector::drawBBsOnImg(cv_ptr, image_points, bbs, class_preds, class_pred_confs);
+        bb_img_pub_.publish(cv_ptr->toImageMsg());
+    }
+    //Publish cone markers
+    if(pub_viz_markers){
+        visualization_msgs::MarkerArray marker_msg;
+        Projector::createMarkerMsg(marker_msg, cones_msg->header.frame_id, cones_msg->header.stamp, pts, class_preds);
+        marker_pub_.publish(marker_msg);
+    }
+    timer.Stop("Publish messages");
     //------------------------------------------------------//
     timer.StopTotal();
     //======================================================//
@@ -288,7 +311,7 @@ std::vector<cv::Point3d> Projector::conesToCvVec (const fs_msgs::Cones::ConstPtr
 }
 
 // Function that draws projected points onto the original image
-void Projector::drawBBsOnImg(cv_bridge::CvImagePtr& cv_ptr, const std::vector<cv::Point2d>& pts2d, const std::vector<cv::Rect>& bbs, const std::vector<int>& class_preds, const std::vector<float>& class_pred_confs, int width, int height){
+void Projector::drawBBsOnImg(cv_bridge::CvImagePtr& cv_ptr, const std::vector<cv::Point2d>& pts2d, const std::vector<cv::Rect>& bbs, const std::vector<int>& class_preds, const std::vector<float>& class_pred_confs){
 
     for (int i = 0; i < pts2d.size(); i++) {
         int x = static_cast<int>(pts2d[i].x);
@@ -316,4 +339,55 @@ cv::Rect Projector::defineBoundingBox(const cv::Point2d& pt2d, int cone_height, 
         static_cast<int>(cone_height)
     );
     return bb;
+}
+
+void Projector::createConesMsg(fs_msgs::Cones& cones_msg, const std::string& frame_id, const ros::Time time, const std::vector<cv::Point3d>& pt3d, const std::vector<int>& class_preds, const std::vector<float>& class_pred_confs) {
+
+    cones_msg.header.frame_id = frame_id;
+    cones_msg.header.stamp = time;
+
+    for (int i = 0; i < pt3d.size(); i++) {
+        if(class_preds[i] != 0){ // Only publish cones that are not classified as "no_cone"
+            fs_msgs::Cone cone;
+            cone.x = pt3d[i].x;
+            cone.y = pt3d[i].y;
+            cone.z = pt3d[i].z;
+            cone.covariance = {0, 0, 0, 0};
+            cone.color = class_preds[i];
+            cone.probability = class_pred_confs[i];
+            cones_msg.cones.push_back(cone);
+        }
+    }
+}
+
+void Projector::createMarkerMsg(visualization_msgs::MarkerArray& marker_array, const std::string& frame_id, const ros::Time time, const std::vector<cv::Point3d>& pt3d, const std::vector<int>& class_preds) {
+
+    for(int i = 0; i < pt3d.size(); i++){
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = frame_id;
+        marker.header.stamp = time;
+        if(!marker_array.markers.empty()){
+            marker.id = marker_array.markers.back().id + 1;
+        }
+        else{
+            marker.id = i;
+        }
+        marker.type = visualization_msgs::Marker::CYLINDER;
+        marker.lifetime = ros::Duration(0.1);
+        marker.pose.position.x = pt3d[i].x;
+        marker.pose.position.y = pt3d[i].y;
+        marker.pose.position.z = pt3d[i].z;
+        marker.pose.orientation.x = 0.0;
+        marker.pose.orientation.y = 0.0;
+        marker.pose.orientation.z = 0.0;
+        marker.pose.orientation.w = 1.0;
+        marker.scale.x = 0.3;
+        marker.scale.y = 0.3;
+        marker.scale.z = 0.5;
+        marker.color.a = 1.0;
+        marker.color.r = colors.at(class_preds[i]).at(0);
+        marker.color.g = colors.at(class_preds[i]).at(1);
+        marker.color.b = colors.at(class_preds[i]).at(2);
+        marker_array.markers.push_back(marker);
+    }
 }
