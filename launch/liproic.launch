@@ -3,7 +3,6 @@
 <launch>
 
     <!-- Pointcloud and image topics that should be subscribed -->
-    <!-- <arg name="sub_topic_cones" default="/perception/lidar_cone_detection/cones"/> -->
     <arg name="sub_topic_cones" default="/perception/lidar_cone_detection/cones"/>
     <arg name="sub_topic_img" default="/zed/zed_node/rgb/image_rect_color"/>
     <arg name="sub_topic_cam_info" default="/zed/zed_node/rgb/camera_info"/>
@@ -26,8 +25,6 @@
         <param name="get_auto_tf" value="$(arg get_auto_tf)"/>
         <param name="get_auto_cam_info" value="$(arg get_auto_cam_info)"/>
         <param name="sub_topic_cam_info" value="$(arg sub_topic_cam_info)"/>
-
-        <!-- <param name="draw_depth" value="$(arg draw_depth)"/> -->
     </node>
 
 </launch>

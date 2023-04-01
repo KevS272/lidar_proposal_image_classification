@@ -23,8 +23,8 @@
         <param name="frame_id_lidar" value="$(arg frame_id_lidar)"/>
         <param name="frame_id_cam" value="$(arg frame_id_cam)"/>
         <param name="get_auto_tf" value="$(arg get_auto_tf)"/>
-
-        <!-- <param name="draw_depth" value="$(arg draw_depth)"/> -->
+        <param name="get_auto_cam_info" value="$(arg get_auto_cam_info)"/>
+        <param name="sub_topic_cam_info" value="$(arg sub_topic_cam_info)"/>
     </node>
 
 </launch>
