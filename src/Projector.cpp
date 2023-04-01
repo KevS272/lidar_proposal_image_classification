@@ -35,19 +35,9 @@ Projector::Projector() : nh_("~"), n_(),
             img_sync.registerCallback(boost::bind(&Projector::callback, this, _1, _2 ));
 
             // Get ROS Parameters
-            nh_.getParam("focal_x", focal_x_);
-            nh_.getParam("focal_y", focal_y_);
-            nh_.getParam("cx", cx_);
-            nh_.getParam("cy", cy_);
-            nh_.getParam("skew", skew_);
-            nh_.getParam("k1", k1_);
-            nh_.getParam("k2", k2_);
-            nh_.getParam("k3", k3_);
-            nh_.getParam("p1", p1_);
-            nh_.getParam("p2", p2_);
-            nh_.getParam("width", width_);
-            nh_.getParam("height", height_);
-            nh_.getParam("get_auto_tf", get_automatic_transform_);
+            nh_.getParam("get_auto_tf", get_auto_tf_);
+            nh_.getParam("get_auto_cam_info", get_auto_cam_info_);
+            nh_.getParam("sub_topic_cam_info", sub_topic_cam_info);
             nh_.getParam("frame_id_lidar", frame_id_lidar_);
             nh_.getParam("frame_id_cam", frame_id_cam_);
             
@@ -63,6 +53,15 @@ Projector::Projector() : nh_("~"), n_(),
             nh_.getParam("print_timer", timer.print_timer);
             nh_.getParam("pub_bb_img", pub_bb_img);
             nh_.getParam("pub_viz_markers", pub_viz_markers);
+
+            // Set up the image classifier
+            std::string path = ros::package::getPath("lidar_proposal_image_classification") + engine_path;
+            const char *planPath = path.c_str();
+            ROS_INFO("[LiProIC] Loading engine from %s", planPath);
+            std::vector<char> plan;
+            engine.ReadPlan(planPath, plan);
+            engine.Init(plan);
+            engine.DiagBindings();
 
             // Color value parser
             colors.resize(color_values_.size(), std::vector<int>(3, 0));
@@ -84,6 +83,39 @@ Projector::Projector() : nh_("~"), n_(),
                 }
             num_classes = classes.size();
 
+            if(get_auto_cam_info_){
+                ROS_INFO("[LiProIC] Waiting for camera parameters on camera_info topic ...");
+                sensor_msgs::CameraInfoConstPtr cam_info = ros::topic::waitForMessage<sensor_msgs::CameraInfo>(sub_topic_cam_info, nh_);
+
+                // Get camera info from camera_info topic
+                focal_x_ = cam_info->K[0];
+                focal_y_ = cam_info->K[4];
+                cx_ = cam_info->K[2];
+                cy_ = cam_info->K[5];
+                skew_ = cam_info->K[1];
+                k1_ = cam_info->D[0];
+                k2_ = cam_info->D[1];
+                p1_ = cam_info->D[2];
+                p2_ = cam_info->D[3];
+                k3_ = cam_info->D[4];
+                width_ = cam_info->width;
+                height_ = cam_info->height;
+                ROS_INFO("[LiProIC] Got camera info from camera_info topic.");
+            } else {
+                nh_.getParam("focal_x", focal_x_);
+                nh_.getParam("focal_y", focal_y_);
+                nh_.getParam("cx", cx_);
+                nh_.getParam("cy", cy_);
+                nh_.getParam("skew", skew_);
+                nh_.getParam("k1", k1_);
+                nh_.getParam("k2", k2_);
+                nh_.getParam("k3", k3_);
+                nh_.getParam("p1", p1_);
+                nh_.getParam("p2", p2_);
+                nh_.getParam("width", width_);
+                nh_.getParam("height", height_);
+            }
+
             // Get Intrinsic matrix
             i_mat = cv::Mat(3, 3, cv::DataType<double>::type);
             i_mat.at<double>(0, 0) = focal_x_;
@@ -97,7 +129,6 @@ Projector::Projector() : nh_("~"), n_(),
             i_mat.at<double>(0, 2) = cx_;
             i_mat.at<double>(1, 2) = cy_;
             i_mat.at<double>(2, 2) = 1;
-            ROS_INFO("[LiProIC] Got intrinsic matrix.");
 
             // Distortion coefficients
             dist_coeffs = cv::Mat(5, 1, cv::DataType<double>::type);
@@ -107,18 +138,11 @@ Projector::Projector() : nh_("~"), n_(),
             dist_coeffs.at<double>(3) = p2_;
             dist_coeffs.at<double>(4) = k3_;
 
-            // Set up the image classifier
-            std::string path = ros::package::getPath("lidar_proposal_image_classification") + engine_path;
-            const char *planPath = path.c_str();
-            ROS_INFO("[LiProIC] Loading engine from %s", planPath);
-            std::vector<char> plan;
-            engine.ReadPlan(planPath, plan);
-            engine.Init(plan);
-            engine.DiagBindings();
+            ROS_INFO("[LiProIC] Set up camera parameters.");
 
             // Get Lidar->Camera transform
             t_vec = cv::Mat(3, 1, cv::DataType<double>::type);
-            if(get_automatic_transform_){
+            if(get_auto_tf_){
                 ros::Rate rate(1.0);
                 bool _got_tf = false;
                 while (nh_.ok() && !_got_tf){

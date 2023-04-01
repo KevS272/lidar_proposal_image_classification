@@ -6,12 +6,14 @@
     <!-- <arg name="sub_topic_cones" default="/perception/lidar_cone_detection/cones"/> -->
     <arg name="sub_topic_cones" default="/perception/lidar_cone_detection/cones"/>
     <arg name="sub_topic_img" default="/zed/zed_node/rgb/image_rect_color"/>
+    <arg name="sub_topic_cam_info" default="/zed/zed_node/rgb/camera_info"/>
 
     <!-- IDs of lidar and camera frames -->
     <arg name="frame_id_lidar" default="os_sensor"/>
     <arg name="frame_id_cam" default="zed_left_camera_optical_frame"/>
 
     <arg name="get_auto_tf" default="false"/>
+    <arg name="get_auto_cam_info" default="true"/>
 
     <node pkg="lidar_proposal_image_classification" type="lidar_proposal_image_classification" name="LiProIC_node" output="screen">
         <rosparam command="load" file="$(find lidar_proposal_image_classification)/config/real.yaml"/>
@@ -22,6 +24,8 @@
         <param name="frame_id_lidar" value="$(arg frame_id_lidar)"/>
         <param name="frame_id_cam" value="$(arg frame_id_cam)"/>
         <param name="get_auto_tf" value="$(arg get_auto_tf)"/>
+        <param name="get_auto_cam_info" value="$(arg get_auto_cam_info)"/>
+        <param name="sub_topic_cam_info" value="$(arg sub_topic_cam_info)"/>
 
         <!-- <param name="draw_depth" value="$(arg draw_depth)"/> -->
     </node>

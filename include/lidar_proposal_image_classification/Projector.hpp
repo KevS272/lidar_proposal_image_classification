@@ -46,7 +46,9 @@ class Projector{
         int height_;
         int width_;
         // Other parameters
-        bool get_automatic_transform_;
+        bool get_auto_tf_;
+        bool get_auto_cam_info_;
+        std::string sub_topic_cam_info;
         bool pub_bb_img;
         bool pub_viz_markers;
         std::string frame_id_lidar_; 
