@@ -47,18 +47,22 @@ This package comes with two launch files: one for real-world use and one for sim
     - **Arguments:**
         - `sub_topic_cones` the topic with lidar cone detections the LiProIC node should subscribe to. **Default:** `/perception/lidar_cone_detection/cones`
         - `sub_topic_img` the image topic the LiProIC node should subscribe to. **Default:** `/zed/zed_node/rgb/image_rect_color`
+        - `sub_topic_cam_info` the camera_info topic the LiProIC node should subscribe to (only necessary if `get_auto_cam_info` = *true*) **Default:** `/zed/zed_node/rgb/camera_info`
         - `frame_id_lidar` the frame ID of the lidar. **Default:** `os_sensor`
         - `frame_id_cam` the frame ID of the camera. **Default:** `zed_left_camera_optical_frame`
         - `get_auto_tf` if *true*, the node subscribes to tf to get the transform, if *false*, the transform from the .yaml file is used. **Default:** `false`
+        - `get_auto_cam_info` if *true*, the node subscribes to specified camera_info topic to get the camera parameters, if *false*, the parameters from the .yaml file are used. **Default:** `false`
     - **Rosparam:**
         - `real.yaml` The intrinsic and extrinsic camera paramters that should be used for the projection + classifier configuration (see *Config files* above)
 - **sim_liproic.launch:** This launches the LiProIC node with paramters that fits recorded simulation data from Nvidia Isaac Sim (like in the picture above).
     - **Arguments:**
         - `sub_topic_cones` the topic with lidar cone detections the LiProIC node should subscribe to. **Default:** `/perception/lidar_cone_detection/cones`
         - `sub_topic_img` the image topic the projection node should subscribe to. **Default:** `/rgb`
+        - `sub_topic_cam_info` the camera_info topic the LiProIC node should subscribe to (only necessary if `get_auto_cam_info` = *true*) **Default:** `/rgb/camera_info`
         - `frame_id_lidar` the frame ID of the lidar. **Default:** `Lidar`
         - `frame_id_cam` the frame ID of the camera. **Default:** `Camera`
         - `get_auto_tf` if *true*, the node subscribes to tf to get the transform, if *false*, the transform from the .yaml file is used. **Default:** `true`
+        - `get_auto_cam_info` if *true*, the node subscribes to specified camera_info topic to get the camera parameters, if *false*, the parameters from the .yaml file are used. **Default:** `false`
     - **Rosparam:**
         - `sim.yaml` The intrinsic and extrinsic camera paramters that should be used for the projection + classifier configuration (see *Config files* above)
 
@@ -72,6 +76,7 @@ Reads point cloud and image data, synchronizes them using an approximate time sy
 - `~sub_topic_img` [(sensor_msgs/Image)](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/Image.html) containing the image the points should be projected on (gets remapped from arg `sub_topic_img`).
 - `~sub_topic_cones` [(fs_msgs/Cones)](https://github.com/KTHFSDV/fs_msgs/blob/devel/msg/Cones.msg) containing list of lidar cone detections that should be used as proposals (gets remapped from arg `sub_topic_cones`).
 - **OPTIONAL:** `/tf` [(geometry_msgs/TransformStamped)](http://docs.ros.org/en/melodic/api/geometry_msgs/html/msg/TransformStamped.html) to grab lidar/camera transform if arg `get_auto_tf` is set to `true`.
+- **OPTIONAL:** `~sub_topic_cam_info` [(sensor_msgs/CameraInfo)](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/CameraInfo.html) to grab the camera parameters from the specified `camera_info` topic if arg `get_auto_cam_info` is set to `true`.
 
 #### Published topics
 
