@@ -1,6 +1,6 @@
 # LiProIC - Lidar Proposal Image Classification
 ## Overview
-This package projects lidar cone detections into a camera images to classify these areas of interest as either a speciffic class of cones or no cone.
+This package projects lidar cone detections into a camera images to classify these areas of interest as either a speciffic class of cones or no cone. An overview of the package can also be found in the [KTHFS Wiki](https://wiki.kthformulastudent.se/index.php/LiDAR_Proposal_Image_Classification).
 
 ## License
 **NO LICENSE!**
