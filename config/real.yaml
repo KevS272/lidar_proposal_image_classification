@@ -1,18 +1,18 @@
 # Image dimensions
-width: 960
-height: 540
+width: 2208
+height: 1242
 
 # Intrinsic camera parameters
-focal_x: 698.9716186523438
-focal_y: 698.9716186523438
-skew: -0.555483153496783
-cx: 532.1896362304688
-cy: 320.1039733886719
-k1: -0.152506391410118
-k2: -0.0317086378242961
-k3: 0.0504283387678160
-p1: -0.00284011515561270
-p2: 0.000437253973299189
+focal_x: 1389.38028373271
+focal_y: 1390.00031020768
+skew: 0 # -0.555483153496783
+cx: 1219.25078262873
+cy: 689.731114553153
+k1: -0.163039057719095
+k2: 0.00831542617763072
+k3: 0.0100865955497531
+p1: -0.000765803567690678
+p2: 0.000501428306653047
 
 # Lidar->camera transformation
 r_vec:
@@ -21,13 +21,13 @@ r_vec:
   - [1,  0,  0]
 
 t_vec:
-  - -0.018 #0.203
-  - -0.203 #-0.018
-  - 0.05 #-0.050
+  - -0.3 #-0.018 #0.203
+  - -0.05 #-0.018
+  - 0.0 #-0.050
 
 # Cone classifier parameters
-bb_height_coef: 1.4                   # Coefficient bounding box height estimation (orig. value: 1.71740618)
-bb_width_factor: 0.8 #0.73            # Percentage of bounding box hight that should be used as bb width
+bb_height_coef: 1.71                   # Coefficient bounding box height estimation (orig. value: 1.71740618)
+bb_width_factor: 0.73 #0.73            # Percentage of bounding box hight that should be used as bb width
 classifier_img_size: 32               # Input image size that is used for the classifier
 engine_path: "/engines/model_multibatch.engine"                                       # Path of classifier engine file (relative to package)
 classes: ["no_cone", "yellow_cone", "blue_cone", "orange_cone", "large_orange_cone"]  # Names and order of classes
