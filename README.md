@@ -23,7 +23,10 @@ This package projects lidar cone detections into a camera images to classify the
 
 
 ## Usage
-Before the package can be used, you have to place a model as .engine file into the `/engines` folder and specify the TensorRT engine file you want to use in the configuration files that are listed below. To Train a classification model and convert it into a TensorRT engine, you can use [this repository](https://github.com/KevS272/pytorch_image_classifier).
+Before the package can be used, you have download the model weights that are used for the classification. To do this, follow these steps:
+1. get the latest model weights from the KTHFS DV Drive [here](https://drive.google.com/drive/folders/1s9m2v4VQfNpHC2PFVnxf5XnK6eesFqrs)
+2. Clone [this repository](https://github.com/KevS272/pytorch_image_classifier) and follow the instructions in the README to convert it into a TensorRT engine
+3. Put the created engine file into the `/engines` directory of this package
 
 You also have to specify the correct camera intrinsics and transform in the config file as well as the correct topics and frame IDs in the launch file according to your data.
 
@@ -87,6 +90,5 @@ Reads point cloud and image data, synchronizes them using an approximate time sy
 
 ## Known issues and future improvements
 - The projection is not 100% percetly mapped onto the image (see picture above). This is most likely due to incorrect camera parameters.
-- The classifier in the image is not yet trained to it's maximum potential. Currently, classifications could be wrong more often than desired.
+- The classifier in the image is not yet trained to it's maximum potential. Currently, classifications could be wrong more often than desired. New models will be added shortly to the Drive.
 - Currently, the rotational matrix is hardcoded. An additional rotation still has to be added to the code in order to work with the transformations from tf.
-- In the future, the node should grab the camera parameters directly from the camera_info topic. Then, the intrinsic parameters in the config files will be removed.
